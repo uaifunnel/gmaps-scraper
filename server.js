@@ -1,329 +1,3 @@
-// import express from "express";
-// import cors from "cors";
-// import puppeteer from "puppeteer-extra";
-// import StealthPlugin from "puppeteer-extra-plugin-stealth";
-// import NodeCache from "node-cache";
-// import path from "path";
-// import { fileURLToPath } from "url";
-// import chromium from "@sparticuz/chromium";
-
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// puppeteer.use(StealthPlugin());
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // Cache inteligente - 1 hora
-// const cache = new NodeCache({ stdTTL: 3600 });
-
-// // ✅ CONFIGURAÇÃO CORS CORRIGIDA
-// app.use(cors({
-//   origin: [
-//     'http://localhost:3000',
-//     'https://uaifunnel.github.io',
-//     'https://gmaps-scraper-api.onrender.com'
-//   ],
-//   credentials: true,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-// }));
-
-// // Handler específico para preflight requests
-// app.options('*', cors());
-
-// app.use(express.json());
-// app.use(express.static(path.join(__dirname, 'frontend')));
-
-// // ✅ ENDPOINTS DE TESTE ADICIONADOS
-// app.get('/', (req, res) => {
-//     res.json({ 
-//         status: 'OK', 
-//         message: 'Google Maps Scraper API funcionando',
-//         timestamp: new Date().toISOString()
-//     });
-// });
-
-// app.get('/health', (req, res) => {
-//     res.json({ 
-//         status: 'healthy',
-//         environment: process.env.NODE_ENV || 'development'
-//     });
-// });
-
-// // Endpoint avançado com filtros
-// app.post("/scrape-advanced", async (req, res) => {
-//     const { 
-//         termoBusca, 
-//         maxResults = 20,
-//         minRating = 0,           
-//         regiao = '',             
-//         incluirHorarios = false, 
-//         incluirReviews = false   
-//     } = req.body;
-    
-//     if (!termoBusca) {
-//         return res.status(400).json({ error: "Termo de busca não fornecido." });
-//     }
-
-//     // Verificar cache
-//     const cacheKey = `${termoBusca}-${regiao}-${minRating}-${maxResults}`;
-//     const cached = cache.get(cacheKey);
-//     if (cached) {
-//         return res.json({ 
-//             ...cached, 
-//             fromCache: true,
-//             message: "Dados do cache - resposta instantânea!" 
-//         });
-//     }
-
-//     let browser;
-//     try {
-//         // ✅ TRATAMENTO DE ERROS MELHORADO
-//         const isProduction = process.env.NODE_ENV === 'production';
-        
-//         console.log(`🚀 Iniciando Puppeteer em modo: ${isProduction ? 'production' : 'development'}`);
-        
-//         browser = await puppeteer.launch({
-//             args: [
-//                 '--no-sandbox',
-//                 '--disable-setuid-sandbox',
-//                 '--disable-dev-shm-usage',
-//                 '--disable-accelerated-2d-canvas',
-//                 '--disable-gpu',
-//                 '--disable-web-security',
-//                 '--disable-features=VizDisplayCompositor',
-//                 '--single-process',
-//                 '--no-zygote',
-//                 '--disable-background-timer-throttling',
-//                 '--disable-backgrounding-occluded-windows',
-//                 '--disable-renderer-backgrounding'
-//             ],
-//             headless: true,
-//             ignoreHTTPSErrors: true,
-//             executablePath: isProduction ? 
-//                 await chromium.executablePath() : 
-//                 puppeteer.executablePath(),
-//         });
-        
-//         console.log(`✅ Puppeteer iniciado com sucesso`);
-
-//         const page = await browser.newPage();
-//         await page.setViewport({ width: 1920, height: 1080 });
-//         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-//         await page.setExtraHTTPHeaders({
-//             'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'
-//         });
-
-//         // Busca com região
-//         const searchTerm = regiao ? `${termoBusca} ${regiao}` : termoBusca;
-//         const searchURL = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}`;
-        
-//         await page.goto(searchURL, { waitUntil: "domcontentloaded", timeout: 30000 });
-//         await new Promise(resolve => setTimeout(resolve, 5000));
-        
-//         // Auto scroll para carregar mais resultados
-//         await autoScroll(page);
-
-//         const links = await page.evaluate(() => {
-//             const anchors = document.querySelectorAll('a[href*="/place/"]');
-//             return Array.from(anchors)
-//                 .map(a => a.href)
-//                 .filter((href, index, arr) => arr.indexOf(href) === index)
-//                 .slice(0, 50);
-//         });
-
-//         // Processamento paralelo
-//         const results = await processLinksParallel(browser, links.slice(0, maxResults), {
-//             minRating,
-//             incluirHorarios,
-//             incluirReviews
-//         });
-
-//         // Filtrar por avaliação
-//         const filteredResults = results.filter(item => {
-//             const rating = parseFloat(item.avaliacao);
-//             return !isNaN(rating) ? rating >= minRating : true;
-//         });
-
-//         const responseData = {
-//             resultados: filteredResults,
-//             total: filteredResults.length,
-//             termo: termoBusca,
-//             regiao: regiao || 'Todas as regiões',
-//             filtros: { minRating, incluirHorarios, incluirReviews }
-//         };
-
-//         // Salvar no cache
-//         cache.set(cacheKey, responseData);
-
-//         res.json(responseData);
-
-//     } catch (error) {
-//         console.error(`❌ Erro ao iniciar Puppeteer:`, error);
-//         res.status(500).json({ 
-//             error: "Erro interno do servidor - Puppeteer falhou ao inicializar",
-//             details: error.message 
-//         });
-//     } finally {
-//         if (browser) await browser.close();
-//     }
-// });
-
-// // Processamento paralelo de links
-// async function processLinksParallel(browser, links, options) {
-//     const results = [];
-//     const batchSize = 1; // Processar 1 por vez no Render Free
-    
-//     for (let i = 0; i < links.length; i += batchSize) {
-//         const batch = links.slice(i, i + batchSize);
-//         const batchPromises = batch.map(link => processLink(browser, link, options));
-        
-//         const batchResults = await Promise.allSettled(batchPromises);
-        
-//         batchResults.forEach((result, index) => {
-//             if (result.status === 'fulfilled' && result.value) {
-//                 results.push(result.value);
-//                 console.log(`✅ Lote ${Math.floor(i/batchSize) + 1} - Item ${index + 1} processado`);
-//             }
-//         });
-        
-//         // Pausa maior entre lotes para Render
-//         await new Promise(resolve => setTimeout(resolve, 3000));
-//     }
-    
-//     return results;
-// }
-
-// // Processar link individual
-// async function processLink(browser, link, options) {
-//     const subPage = await browser.newPage();
-    
-//     try {
-//         // Timeout maior para páginas lentas
-//         await subPage.goto(link, { waitUntil: "domcontentloaded", timeout: 25000 });
-//         await new Promise(resolve => setTimeout(resolve, 2000));
-
-//         const dados = await subPage.evaluate((opts) => {
-//             const getNome = () => {
-//                 const selectors = ['h1.DUwDvf', 'h1[data-attrid="title"]', 'h1'];
-//                 for (let selector of selectors) {
-//                     const el = document.querySelector(selector);
-//                     if (el) return el.textContent.trim();
-//                 }
-//                 return null;
-//             };
-
-//             const getEndereco = () => {
-//                 const selectors = [
-//                     'button[data-item-id="address"] .W4Efsd',
-//                     '[data-item-id="address"]',
-//                     '.Io6YTe'
-//                 ];
-//                 for (let selector of selectors) {
-//                     const el = document.querySelector(selector);
-//                     if (el) return el.textContent.trim();
-//                 }
-//                 return null;
-//             };
-
-//             const getTelefone = () => {
-//                 const selectors = [
-//                     'button[data-item-id="phone"] .W4Efsd',
-//                     '[data-item-id="phone"]'
-//                 ];
-//                 for (let selector of selectors) {
-//                     const el = document.querySelector(selector);
-//                     if (el) return el.textContent.trim();
-//                 }
-//                 return null;
-//             };
-
-//             const getAvaliacao = () => {
-//                 const el = document.querySelector('.MW4etd');
-//                 return el ? el.textContent.trim() : null;
-//             };
-
-//             const getCategoria = () => {
-//                 const el = document.querySelector('.DkEaL');
-//                 return el ? el.textContent.trim() : null;
-//             };
-
-//             // Horários de funcionamento
-//             const getHorarios = () => {
-//                 if (!opts.incluirHorarios) return null;
-//                 const horariosEl = document.querySelector('.t39EBf');
-//                 return horariosEl ? horariosEl.textContent.trim() : null;
-//             };
-
-//             // Reviews
-//             const getReviews = () => {
-//                 if (!opts.incluirReviews) return [];
-//                 const reviews = document.querySelectorAll('.jftiEf');
-//                 return Array.from(reviews).slice(0, 3).map(review => ({
-//                     texto: review.querySelector('.wiI7pd')?.textContent?.trim() || '',
-//                     autor: review.querySelector('.d4r55')?.textContent?.trim() || '',
-//                     rating: review.querySelector('.kvMYJc')?.getAttribute('aria-label') || ''
-//                 }));
-//             };
-
-//             return {
-//                 nome: getNome(),
-//                 endereco: getEndereco(),
-//                 telefone: getTelefone(),
-//                 avaliacao: getAvaliacao(),
-//                 categoria: getCategoria(),
-//                 horarios: getHorarios(),
-//                 reviews: getReviews()
-//             };
-//         }, options);
-
-//         return {
-//             nome: dados.nome || "Não encontrado",
-//             endereco: dados.endereco || "Não encontrado", 
-//             telefone: dados.telefone || "Não encontrado",
-//             avaliacao: dados.avaliacao || "Não encontrado",
-//             categoria: dados.categoria || "Não encontrado",
-//             horarios: dados.horarios || "Não encontrado",
-//             reviews: dados.reviews || [],
-//             link: link
-//         };
-
-//     } catch (error) {
-//         console.error(`Erro no link ${link}:`, error.message);
-//         return null;
-//     } finally {
-//         await subPage.close();
-//     }
-// }
-
-// // Auto scroll
-// async function autoScroll(page) {
-//     await page.evaluate(async () => {
-//         const scrollContainer = document.querySelector('[role="main"]') || document.body;
-//         await new Promise((resolve) => {
-//             let totalHeight = 0;
-//             const distance = 200;
-//             const timer = setInterval(() => {
-//                 scrollContainer.scrollBy(0, distance);
-//                 totalHeight += distance;
-
-//                 if(totalHeight >= scrollContainer.scrollHeight - window.innerHeight){
-//                     clearInterval(timer);
-//                     resolve();
-//                 }
-//             }, 150);
-//         });
-//     });
-// }
-
-// app.listen(PORT, () => {
-//     console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-//     console.log(`📱 Acesse: http://localhost:${PORT}`);
-//     console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-// });
-
 import express from "express";
 import cors from "cors";
 import puppeteer from "puppeteer-core";
@@ -413,16 +87,23 @@ app.get('/test-puppeteer', async (req, res) => {
     }
 });
 
-// Endpoint simplificado para scraping
+// Endpoint principal com seletores melhorados
 app.post("/scrape-advanced", async (req, res) => {
-    const { termoBusca, maxResults = 5 } = req.body; // Limite baixo para teste
+    const { 
+        termoBusca, 
+        maxResults = 5,
+        regiao = '',
+        minRating = 0,
+        incluirHorarios = false,
+        incluirReviews = false
+    } = req.body;
     
     if (!termoBusca) {
         return res.status(400).json({ error: "Termo de busca não fornecido." });
     }
 
     // Verificar cache primeiro
-    const cacheKey = `simple-${termoBusca}-${maxResults}`;
+    const cacheKey = `v2-${termoBusca}-${regiao}-${maxResults}`;
     const cached = cache.get(cacheKey);
     if (cached) {
         return res.json({ 
@@ -434,7 +115,7 @@ app.post("/scrape-advanced", async (req, res) => {
 
     let browser;
     try {
-        console.log(`🚀 Iniciando scraping para: ${termoBusca}`);
+        console.log(`🚀 Iniciando scraping para: "${termoBusca}" ${regiao ? `em ${regiao}` : ''}`);
         
         // Configuração específica para Render
         browser = await puppeteer.launch({
@@ -445,64 +126,236 @@ app.post("/scrape-advanced", async (req, res) => {
         });
 
         const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+        await page.setViewport({ width: 1366, height: 768 });
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
-        const searchURL = `https://www.google.com/maps/search/${encodeURIComponent(termoBusca)}`;
+        // Busca com região se fornecida
+        const searchTerm = regiao ? `${termoBusca} ${regiao}` : termoBusca;
+        const searchURL = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}`;
         console.log(`📍 Acessando: ${searchURL}`);
         
-        await page.goto(searchURL, { waitUntil: "domcontentloaded", timeout: 15000 });
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await page.goto(searchURL, { waitUntil: "networkidle0", timeout: 20000 });
+        console.log('⏱️ Página carregada, aguardando resultados...');
+        
+        // Aguardar mais tempo para carregar
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
-        // Buscar links básicos
-        const links = await page.evaluate(() => {
-            const anchors = document.querySelectorAll('a[href*="/place/"]');
-            return Array.from(anchors)
-                .map(a => a.href)
-                .filter((href, index, arr) => arr.indexOf(href) === index)
-                .slice(0, 10); // Máximo 10 links
+        // Scroll para carregar mais resultados
+        await page.evaluate(async () => {
+            const scrollContainer = document.querySelector('[role="main"]') || document.body;
+            for (let i = 0; i < 3; i++) {
+                scrollContainer.scrollBy(0, 1000);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
         });
 
-        console.log(`🔗 Encontrados ${links.length} links`);
+        console.log('🔍 Procurando por links de estabelecimentos...');
 
-        // Processar apenas os primeiros links (sem paralelismo)
+        // Buscar links com múltiplos seletores
+        const links = await page.evaluate(() => {
+            // Múltiplos seletores para diferentes versões do Google Maps
+            const selectors = [
+                'a[href*="/place/"]',
+                'a[data-value*="place"]',
+                '.hfpxzc',
+                '[data-result-index] a',
+                '.Nv2PK a'
+            ];
+            
+            let allLinks = new Set();
+            
+            selectors.forEach(selector => {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(el => {
+                    if (el.href && el.href.includes('/place/')) {
+                        allLinks.add(el.href);
+                    }
+                });
+            });
+            
+            console.log(`Encontrados ${allLinks.size} links únicos`);
+            return Array.from(allLinks).slice(0, 15);
+        });
+
+        console.log(`🔗 Total de ${links.length} links encontrados`);
+
+        if (links.length === 0) {
+            return res.json({
+                resultados: [],
+                total: 0,
+                termo: termoBusca,
+                regiao: regiao || 'Todas as regiões',
+                message: 'Nenhum estabelecimento encontrado. Tente termos mais específicos.',
+                debug: {
+                    searchURL,
+                    timestamp: new Date().toISOString()
+                }
+            });
+        }
+
+        // Processar links um por vez
         const results = [];
-        const linksToProcess = links.slice(0, Math.min(maxResults, 3)); // Máximo 3 para teste
+        const linksToProcess = links.slice(0, Math.min(maxResults, 8));
 
         for (let i = 0; i < linksToProcess.length; i++) {
             const link = linksToProcess[i];
-            console.log(`📝 Processando ${i + 1}/${linksToProcess.length}: ${link}`);
+            console.log(`📝 Processando ${i + 1}/${linksToProcess.length}: ${link.substring(0, 80)}...`);
             
             try {
                 const subPage = await browser.newPage();
-                await subPage.goto(link, { waitUntil: "domcontentloaded", timeout: 10000 });
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                await subPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+                await subPage.goto(link, { waitUntil: "domcontentloaded", timeout: 15000 });
+                await new Promise(resolve => setTimeout(resolve, 3000));
 
-                const dados = await subPage.evaluate(() => {
-                    const nome = document.querySelector('h1.DUwDvf')?.textContent?.trim() || 
-                                document.querySelector('h1')?.textContent?.trim() || 'Nome não encontrado';
-                    
-                    const endereco = document.querySelector('button[data-item-id="address"] .W4Efsd')?.textContent?.trim() || 
-                                    'Endereço não encontrado';
-                    
-                    const telefone = document.querySelector('button[data-item-id="phone"] .W4Efsd')?.textContent?.trim() || 
-                                    'Telefone não encontrado';
+                const dados = await subPage.evaluate((options) => {
+                    // Função para obter nome com múltiplos seletores
+                    const getNome = () => {
+                        const selectors = [
+                            'h1.DUwDvf',
+                            'h1[data-attrid="title"]',
+                            '.x3AX1-LfntMc-header-title-title',
+                            '.SPZz6b h1',
+                            'h1',
+                            '.qrShPb h1'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const element = document.querySelector(selector);
+                            if (element && element.textContent.trim()) {
+                                return element.textContent.trim();
+                            }
+                        }
+                        return null;
+                    };
 
-                    return { nome, endereco, telefone };
-                });
+                    // Função para obter endereço
+                    const getEndereco = () => {
+                        const selectors = [
+                            'button[data-item-id="address"] .W4Efsd',
+                            '[data-item-id="address"] .W4Efsd',
+                            '.Io6YTe',
+                            '.T6pBCe',
+                            '.rogA2c .Io6YTe'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const element = document.querySelector(selector);
+                            if (element && element.textContent.trim()) {
+                                return element.textContent.trim();
+                            }
+                        }
+                        return null;
+                    };
 
-                results.push({
-                    ...dados,
+                    // Função para obter telefone
+                    const getTelefone = () => {
+                        const selectors = [
+                            'button[data-item-id="phone"] .W4Efsd',
+                            '[data-item-id="phone"] .W4Efsd',
+                            'button[data-tooltip*="telefone"]',
+                            '.rogA2c button[data-item-id="phone"]'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const element = document.querySelector(selector);
+                            if (element && element.textContent.trim()) {
+                                return element.textContent.trim();
+                            }
+                        }
+                        return null;
+                    };
+
+                    // Função para obter avaliação
+                    const getAvaliacao = () => {
+                        const selectors = [
+                            '.MW4etd',
+                            '.ceNzKf',
+                            'span.yi40Hd.YrbPuc'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const element = document.querySelector(selector);
+                            if (element && element.textContent.trim()) {
+                                return element.textContent.trim();
+                            }
+                        }
+                        return null;
+                    };
+
+                    // Função para obter categoria
+                    const getCategoria = () => {
+                        const selectors = [
+                            '.DkEaL',
+                            '.mgr77e .DkEaL',
+                            'button[jsaction*="category"]'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const element = document.querySelector(selector);
+                            if (element && element.textContent.trim()) {
+                                return element.textContent.trim();
+                            }
+                        }
+                        return null;
+                    };
+
+                    // Função para obter horários
+                    const getHorarios = () => {
+                        if (!options.incluirHorarios) return null;
+                        
+                        const selectors = [
+                            '.t39EBf',
+                            '.ZDu9vd',
+                            '.OqCZI .t39EBf'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const element = document.querySelector(selector);
+                            if (element && element.textContent.trim()) {
+                                return element.textContent.trim();
+                            }
+                        }
+                        return null;
+                    };
+
+                    return {
+                        nome: getNome(),
+                        endereco: getEndereco(),
+                        telefone: getTelefone(),
+                        avaliacao: getAvaliacao(),
+                        categoria: getCategoria(),
+                        horarios: getHorarios()
+                    };
+                }, { incluirHorarios, incluirReviews });
+
+                // Filtrar por avaliação se especificado
+                const rating = parseFloat(dados.avaliacao);
+                if (minRating > 0 && (!isNaN(rating) && rating < minRating)) {
+                    console.log(`⏭️ Item ignorado (avaliação ${dados.avaliacao} < ${minRating}): ${dados.nome}`);
+                    await subPage.close();
+                    continue;
+                }
+
+                const resultado = {
+                    nome: dados.nome || "Nome não encontrado",
+                    endereco: dados.endereco || "Endereço não encontrado",
+                    telefone: dados.telefone || "Telefone não encontrado",
+                    avaliacao: dados.avaliacao || "Sem avaliação",
+                    categoria: dados.categoria || "Categoria não encontrada",
+                    horarios: dados.horarios || "Horários não encontrados",
+                    reviews: [],
                     link: link
-                });
+                };
 
+                results.push(resultado);
                 await subPage.close();
-                console.log(`✅ Item ${i + 1} processado: ${dados.nome}`);
+                console.log(`✅ Item ${i + 1} processado: ${dados.nome || 'Sem nome'}`);
                 
             } catch (error) {
                 console.error(`❌ Erro no item ${i + 1}:`, error.message);
             }
 
-            // Pausa entre itens
+            // Pausa entre itens para não sobrecarregar
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
@@ -510,13 +363,15 @@ app.post("/scrape-advanced", async (req, res) => {
             resultados: results,
             total: results.length,
             termo: termoBusca,
+            regiao: regiao || 'Todas as regiões',
+            filtros: { minRating, incluirHorarios, incluirReviews },
             timestamp: new Date().toISOString()
         };
 
         // Salvar no cache
         cache.set(cacheKey, responseData);
 
-        console.log(`✅ Scraping concluído: ${results.length} resultados`);
+        console.log(`✅ Scraping concluído: ${results.length} resultados encontrados`);
         res.json(responseData);
 
     } catch (error) {
