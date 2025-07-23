@@ -85,9 +85,14 @@
 
     <script>
         // Detecta se está em produção ou desenvolvimento
+        // const API_URL = window.location.hostname === 'localhost' 
+        //     ? 'http://localhost:3000' 
+        //     : window.location.origin;
+
+        // NEW API RENDER
         const API_URL = window.location.hostname === 'localhost' 
             ? 'http://localhost:3000' 
-            : window.location.origin;
+            : 'https://SUA-URL-DO-RENDER.onrender.com';
         
         let dadosAtuais = [];
 
