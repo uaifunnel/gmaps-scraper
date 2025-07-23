@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Super Google Maps Scraper Pro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ Super Google Maps Scraper Pro</h1>
+        
+        <div class="search-section">
+            <div class="search-row">
+                <input type="text" id="searchInput" placeholder="Ex: restaurantes, hotéis, lojas...">
+                <input type="text" id="regionInput" placeholder="Região (opcional): São Paulo, Rio de Janeiro...">
+            </div>
+            
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label>Máx. Resultados:</label>
+                    <input type="number" id="maxResults" value="20" min="1" max="50">
+                </div>
+                
+                <div class="filter-group">
+                    <label>Avaliação Mínima:</label>
+                    <select id="minRating">
+                        <option value="0">Qualquer</option>
+                        <option value="3">3+ estrelas</option>
+                        <option value="4">4+ estrelas</option>
+                        <option value="4.5">4.5+ estrelas</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="incluirHorarios"> Incluir horários
+                    </label>
+                </div>
+                
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="incluirReviews"> Incluir reviews
+                    </label>
+                </div>
+            </div>
+            
+            <button onclick="buscarDados()" class="search-btn">🔍 Buscar com Filtros</button>
+        </div>
+
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p>Processando com IA... Isso pode levar alguns minutos.</p>
+            <div class="progress-info">
+                <span id="progressText">Iniciando busca...</span>
+            </div>
+        </div>
+
+        <div id="results" class="hidden">
+            <div class="results-header">
+                <h2 id="resultsTitle"></h2>
+                <div class="export-buttons">
+                    <button onclick="exportarCSV()" class="export-btn">📊 CSV</button>
+                    <button onclick="exportarJSON()" class="export-btn">📋 JSON</button>
+                </div>
+            </div>
+            
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Endereço</th>
+                        <th>Telefone</th>
+                        <th>⭐ Avaliação</th>
+                        <th>Categoria</th>
+                        <th>🕐 Horários</th>
+                        <th>📝 Reviews</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Detecta se está em produção ou desenvolvimento
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000' 
+            : window.location.origin;
+        
+        let dadosAtuais = [];
+
+        async function buscarDados() {
+            const termo = document.getElementById('searchInput').value.trim();
+            const regiao = document.getElementById('regionInput').value.trim();
+            const maxResults = parseInt(document.getElementById('maxResults').value) || 20;
+            const minRating = parseFloat(document.getElementById('minRating').value) || 0;
+            const incluirHorarios = document.getElementById('incluirHorarios').checked;
+            const incluirReviews = document.getElementById('incluirReviews').checked;
+            
+            if (!termo) {
+                alert('Por favor, digite um termo de busca!');
+                return;
+            }
+
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('progressText').textContent = 'Iniciando busca...';
+
+            try {
+                const response = await fetch(`${API_URL}/scrape-advanced`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        termoBusca: termo,
+                        regiao,
+                        maxResults,
+                        minRating,
+                        incluirHorarios,
+                        incluirReviews
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                dadosAtuais = data.resultados;
+                exibirResultados(data);
+                
+                if (data.fromCache) {
+                    showNotification('⚡ Dados carregados do cache!', 'success');
+                }
+                
+            } catch (error) {
+                showNotification('Erro: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        function exibirResultados(data) {
+            const tbody = document.querySelector('#resultsTable tbody');
+            tbody.innerHTML = '';
+
+            const title = `${data.total} resultados para "${data.termo}"`;
+            const subtitle = data.regiao !== 'Todas as regiões' ? ` em ${data.regiao}` : '';
+            document.getElementById('resultsTitle').textContent = title + subtitle;
+
+            data.resultados.forEach(item => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td><strong>${item.nome}</strong></td>
+                    <td>${item.endereco}</td>
+                    <td>${item.telefone}</td>
+                    <td><span class="rating">${item.avaliacao}</span></td>
+                    <td><span class="categoria">${item.categoria}</span></td>
+                    <td>${item.horarios || '-'}</td>
+                    <td>${Array.isArray(item.reviews) && item.reviews.length > 0 ? `${item.reviews.length} review(s)` : '-'}</td>
+                    <td><a href="${item.link}" target="_blank" class="link-btn">🔗 Ver</a></td>
+                `;
+            });
+
+            document.getElementById('results').classList.remove('hidden');
+        }
+
+        function exportarCSV() {
+            if (dadosAtuais.length === 0) return;
+
+            const headers = ['Nome', 'Endereço', 'Telefone', 'Avaliação', 'Categoria', 'Horários', 'Link'];
+            const csvContent = [
+                headers.join(','),
+                ...dadosAtuais.map(item => [
+                    `"${item.nome}"`,
+                    `"${item.endereco}"`,
+                    `"${item.telefone}"`,
+                    `"${item.avaliacao}"`,
+                    `"${item.categoria}"`,
+                    `"${item.horarios || ''}"`,
+                    `"${item.link}"`
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `google_maps_results_${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportarJSON() {
+            if (dadosAtuais.length === 0) return;
+            
+            const dataStr = JSON.stringify(dadosAtuais, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `google_maps_data_${Date.now()}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Enter para buscar
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                buscarDados();
+            }
+        });
+    </script>
+</body>
+</html>

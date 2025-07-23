@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: gmaps-scraper-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PUPPETEER_ARGS
+        value: "--no-sandbox,--disable-setuid-sandbox"
