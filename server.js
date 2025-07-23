@@ -51,22 +51,26 @@ app.post("/scrape-advanced", async (req, res) => {
     let browser;
     try {
         // 🔧 CONFIGURAÇÃO ESPECÍFICA PARA RENDER
+        // Configuração específica para Render
         const isProduction = process.env.NODE_ENV === 'production';
-        
+
         browser = await puppeteer.launch({
-            args: isProduction ? chromium.args : [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-accelerated-2d-canvas",
-                "--disable-gpu",
-                "--disable-images",
-                "--window-size=1920x1080"
-            ],
-            defaultViewport: chromium.defaultViewport,
-            executablePath: isProduction ? await chromium.executablePath() : puppeteer.executablePath(),
-            headless: chromium.headless,
-            ignoreHTTPSErrors: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--single-process', // Importante para Render
+            '--no-zygote',     // Importante para Render
+        ],
+        headless: true,
+        ignoreHTTPSErrors: true,
+        executablePath: isProduction ? 
+            await chromium.executablePath() : 
+            puppeteer.executablePath(),
         });
 
         const page = await browser.newPage();
@@ -131,7 +135,7 @@ app.post("/scrape-advanced", async (req, res) => {
 // Processamento paralelo de links
 async function processLinksParallel(browser, links, options) {
     const results = [];
-    const batchSize = 2; // Reduzir para Render (menos recursos)
+    const batchSize = 1; // ✅ MUDANÇA 1: Processar 1 por vez no Render Free
     
     for (let i = 0; i < links.length; i += batchSize) {
         const batch = links.slice(i, i + batchSize);
@@ -146,8 +150,8 @@ async function processLinksParallel(browser, links, options) {
             }
         });
         
-        // Pausa maior entre lotes para Render
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // ✅ MUDANÇA 2: Pausa maior entre lotes para Render
+        await new Promise(resolve => setTimeout(resolve, 3000));
     }
     
     return results;
@@ -158,7 +162,8 @@ async function processLink(browser, link, options) {
     const subPage = await browser.newPage();
     
     try {
-        await subPage.goto(link, { waitUntil: "domcontentloaded", timeout: 15000 });
+        // ✅ MUDANÇA 3: Timeout maior para páginas lentas
+        await subPage.goto(link, { waitUntil: "domcontentloaded", timeout: 25000 });
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         const dados = await subPage.evaluate((opts) => {
