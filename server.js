@@ -5,6 +5,7 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import NodeCache from "node-cache";
 import path from "path";
 import { fileURLToPath } from "url";
+import chromium from "@sparticuz/chromium";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,8 +20,6 @@ const cache = new NodeCache({ stdTTL: 3600 });
 
 app.use(cors());
 app.use(express.json());
-
-// Servir arquivos estáticos da pasta frontend
 app.use(express.static(path.join(__dirname, 'frontend')));
 
 // Endpoint avançado com filtros
@@ -51,9 +50,11 @@ app.post("/scrape-advanced", async (req, res) => {
 
     let browser;
     try {
+        // 🔧 CONFIGURAÇÃO ESPECÍFICA PARA RENDER
+        const isProduction = process.env.NODE_ENV === 'production';
+        
         browser = await puppeteer.launch({
-            headless: "new",
-            args: [
+            args: isProduction ? chromium.args : [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
@@ -62,6 +63,10 @@ app.post("/scrape-advanced", async (req, res) => {
                 "--disable-images",
                 "--window-size=1920x1080"
             ],
+            defaultViewport: chromium.defaultViewport,
+            executablePath: isProduction ? await chromium.executablePath() : puppeteer.executablePath(),
+            headless: chromium.headless,
+            ignoreHTTPSErrors: true,
         });
 
         const page = await browser.newPage();
@@ -126,7 +131,7 @@ app.post("/scrape-advanced", async (req, res) => {
 // Processamento paralelo de links
 async function processLinksParallel(browser, links, options) {
     const results = [];
-    const batchSize = 3; // Processar 3 páginas simultaneamente
+    const batchSize = 2; // Reduzir para Render (menos recursos)
     
     for (let i = 0; i < links.length; i += batchSize) {
         const batch = links.slice(i, i + batchSize);
@@ -141,8 +146,8 @@ async function processLinksParallel(browser, links, options) {
             }
         });
         
-        // Pequena pausa entre lotes
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Pausa maior entre lotes para Render
+        await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
     return results;
@@ -272,4 +277,5 @@ async function autoScroll(page) {
 app.listen(PORT, () => {
     console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
     console.log(`📱 Acesse: http://localhost:${PORT}`);
+    console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 });
