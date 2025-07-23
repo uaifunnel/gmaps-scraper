@@ -18,9 +18,39 @@ const PORT = process.env.PORT || 3000;
 // Cache inteligente - 1 hora
 const cache = new NodeCache({ stdTTL: 3600 });
 
-app.use(cors());
+// ✅ CONFIGURAÇÃO CORS CORRIGIDA
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://uaifunnel.github.io',
+    'https://gmaps-scraper-api.onrender.com'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
+// Handler específico para preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'frontend')));
+
+// ✅ ENDPOINTS DE TESTE ADICIONADOS
+app.get('/', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        message: 'Google Maps Scraper API funcionando',
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'healthy',
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
 
 // Endpoint avançado com filtros
 app.post("/scrape-advanced", async (req, res) => {
@@ -50,28 +80,34 @@ app.post("/scrape-advanced", async (req, res) => {
 
     let browser;
     try {
-        // 🔧 CONFIGURAÇÃO ESPECÍFICA PARA RENDER
-        // Configuração específica para Render
+        // ✅ TRATAMENTO DE ERROS MELHORADO
         const isProduction = process.env.NODE_ENV === 'production';
-
+        
+        console.log(`🚀 Iniciando Puppeteer em modo: ${isProduction ? 'production' : 'development'}`);
+        
         browser = await puppeteer.launch({
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--single-process', // Importante para Render
-            '--no-zygote',     // Importante para Render
-        ],
-        headless: true,
-        ignoreHTTPSErrors: true,
-        executablePath: isProduction ? 
-            await chromium.executablePath() : 
-            puppeteer.executablePath(),
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--single-process',
+                '--no-zygote',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
+            ],
+            headless: true,
+            ignoreHTTPSErrors: true,
+            executablePath: isProduction ? 
+                await chromium.executablePath() : 
+                puppeteer.executablePath(),
         });
+        
+        console.log(`✅ Puppeteer iniciado com sucesso`);
 
         const page = await browser.newPage();
         await page.setViewport({ width: 1920, height: 1080 });
@@ -125,8 +161,11 @@ app.post("/scrape-advanced", async (req, res) => {
         res.json(responseData);
 
     } catch (error) {
-        console.error("Erro:", error);
-        res.status(500).json({ error: "Erro ao processar requisição: " + error.message });
+        console.error(`❌ Erro ao iniciar Puppeteer:`, error);
+        res.status(500).json({ 
+            error: "Erro interno do servidor - Puppeteer falhou ao inicializar",
+            details: error.message 
+        });
     } finally {
         if (browser) await browser.close();
     }
@@ -135,7 +174,7 @@ app.post("/scrape-advanced", async (req, res) => {
 // Processamento paralelo de links
 async function processLinksParallel(browser, links, options) {
     const results = [];
-    const batchSize = 1; // ✅ MUDANÇA 1: Processar 1 por vez no Render Free
+    const batchSize = 1; // Processar 1 por vez no Render Free
     
     for (let i = 0; i < links.length; i += batchSize) {
         const batch = links.slice(i, i + batchSize);
@@ -150,7 +189,7 @@ async function processLinksParallel(browser, links, options) {
             }
         });
         
-        // ✅ MUDANÇA 2: Pausa maior entre lotes para Render
+        // Pausa maior entre lotes para Render
         await new Promise(resolve => setTimeout(resolve, 3000));
     }
     
@@ -162,7 +201,7 @@ async function processLink(browser, link, options) {
     const subPage = await browser.newPage();
     
     try {
-        // ✅ MUDANÇA 3: Timeout maior para páginas lentas
+        // Timeout maior para páginas lentas
         await subPage.goto(link, { waitUntil: "domcontentloaded", timeout: 25000 });
         await new Promise(resolve => setTimeout(resolve, 2000));
 
